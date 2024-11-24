@@ -1,62 +1,58 @@
-import tkinter as tk
-
-def on_button_hover(event):
-    """Handles hover effects."""
-    event.widget.config(bg="lightblue", fg="black")
-
-def on_button_leave(event):
-    """Reverts hover effects."""
-    event.widget.config(bg="midnightblue", fg="white")
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 
 def on_button_click(size):
     """Handles button click events."""
     for widget in root.winfo_children():
         widget.destroy()
-    label = tk.Label(root, text=f"You selected: {size}", font=("Arial", 24, "bold"), fg="white", bg="midnightblue")
-    label.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+    label = ttk.Label(root, text=f"You selected: {size}", font=("Helvetica", 24, "bold"), bootstyle="info")
+    label.pack(pady=50, fill=X, expand=True)
+
+    back_button = ttk.Button(
+        root,
+        text="Back to Menu",
+        command=draw_menu,
+        bootstyle="dark-outline"
+    )
+    back_button.pack(pady=20)
 
 def draw_menu():
     """Draws the main menu."""
     global root
-    root = tk.Tk()
-    root.title("Maze Size Selector")
-    root.configure(bg="black")
-
-    # Set minimum size
-    root.minsize(400, 400)
+    for widget in root.winfo_children():
+        widget.destroy()
 
     # Title
-    title = tk.Label(root, text="Select Maze Size", font=("Arial", 28, "bold"), fg="cyan", bg="midnightblue")
-    title.grid(row=0, column=0, padx=20, pady=20)
-
-    # Configure grid
-    root.grid_rowconfigure(1, weight=1)
-    root.grid_columnconfigure(0, weight=1)
+    title = ttk.Label(root, text="Select Maze Size", font=("Helvetica", 28, "bold"), bootstyle="primary")
+    title.pack(pady=30, fill=X, expand=True)
 
     # Menu Options
     sizes = ["3x3", "5x5", "10x10", "15x15", "20x20", "25x25", "30x30"]
-    for i, size in enumerate(sizes):
-        button = tk.Button(
+    for size in sizes:
+        button = ttk.Button(
             root,
             text=size,
-            font=("Arial", 18),
-            bg="midnightblue",
-            fg="white",
-            activebackground="blue",
-            activeforeground="white",
-            relief="raised",
-            bd=3
+            command=lambda size=size: on_button_click(size),
+            bootstyle="info-outline",
+            width=15,
+            style="Custom.TButton"
         )
-        button.grid(row=i + 1, column=0, padx=20, pady=10, sticky="ew")
+        button.pack(pady=10)
 
-        # Add hover effects
-        button.bind("<Enter>", on_button_hover)
-        button.bind("<Leave>", on_button_leave)
+# Initialize the app
+root = ttk.Window(themename="darkly")  # Use a modern theme
+root.title("Maze Size Selector")
+root.geometry("900x600")
+root.resizable(False, False)
+root.configure(bg='cyan')
 
-        # Add click event
-        button.config(command=lambda size=size: on_button_click(size))
+# Create a custom style for buttons
+style = ttk.Style()
+style.configure("Custom.TButton", borderwidth=1, relief="solid", bordercolor="black", focusthickness=3, focuscolor="none")
+style.map("Custom.TButton", background=[("active", "linear-gradient(to bottom, #00f, #0ff)")])
 
-    root.mainloop()
-
-# Run the menu
+# Draw the main menu
 draw_menu()
+
+# Run the application
+root.mainloop()
