@@ -1,66 +1,62 @@
-from tkinter import *
-from tkinter import ttk
-from tkinter.ttk import Progressbar
-import os
+import tkinter as tk
 
-root = Tk()
-# Corrected the file path separator and ensured it handles single or double slashes.
-image = PhotoImage(file='nel.png')
+def on_button_hover(event):
+    """Handles hover effects."""
+    event.widget.config(bg="lightblue", fg="black")
 
-# Set the dimensions of the application window
-height = 430
-width = 530
-x = (root.winfo_screenwidth() // 2) - (width // 2)
-y = (root.winfo_screenheight() // 2) - (height // 2)
-root.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-root.overrideredirect(True)
+def on_button_leave(event):
+    """Reverts hover effects."""
+    event.widget.config(bg="midnightblue", fg="white")
 
-# Background color updated to a proper hex code with '#' prefix
-root.config(background="#2F6C60")
+def on_button_click(size):
+    """Handles button click events."""
+    for widget in root.winfo_children():
+        widget.destroy()
+    label = tk.Label(root, text=f"You selected: {size}", font=("Arial", 24, "bold"), fg="white", bg="midnightblue")
+    label.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
 
-# Adding the welcome label
-welcome_label = Label(root, text='Algorithm Visualizer', bg='#2F6C60', font=("Trebuchet Ms", 15, "bold"), fg='#FFFFFF')
-welcome_label.place(x=130, y=25)
+def draw_menu():
+    """Draws the main menu."""
+    global root
+    root = tk.Tk()
+    root.title("Maze Size Selector")
+    root.configure(bg="black")
 
-# Adding the background image
-bg_label = Label(root, image=image, bg='#2F6C60')
-bg_label.place(x=130, y=65)
+    # Set minimum size
+    root.minsize(400, 400)
 
-# Adding the progress label
-progres_label = Label(root, text='Loading...', bg='#2F6C60', font=("Trebuchet Ms", 10, "bold"), fg='#FFFFFF')
-progres_label.place(x=190, y=330)
+    # Title
+    title = tk.Label(root, text="Select Maze Size", font=("Arial", 28, "bold"), fg="cyan", bg="midnightblue")
+    title.grid(row=0, column=0, padx=20, pady=20)
 
-# Configuring the progress bar style
-progress = ttk.Style()
-progress.theme_use('clam')  # Changed from 'clan' to 'clam', which is a valid theme
-progress.configure("red.Horizontal.TProgressbar", troughcolor='red', background='#108CFF')
+    # Configure grid
+    root.grid_rowconfigure(1, weight=1)
+    root.grid_columnconfigure(0, weight=1)
 
-# Adding the progress bar
-progress_bar = Progressbar(root, style="red.Horizontal.TProgressbar", orient=HORIZONTAL, length=400, mode='determinate')
-progress_bar.place(x=70, y=370)
+    # Menu Options
+    sizes = ["3x3", "5x5", "10x10", "15x15", "20x20", "25x25", "30x30"]
+    for i, size in enumerate(sizes):
+        button = tk.Button(
+            root,
+            text=size,
+            font=("Arial", 18),
+            bg="midnightblue",
+            fg="white",
+            activebackground="blue",
+            activeforeground="white",
+            relief="raised",
+            bd=3
+        )
+        button.grid(row=i + 1, column=0, padx=20, pady=10, sticky="ew")
 
-# Define a function to open the main script
-def def_top():
-    root.withdraw()
-    os.system('python main.py')
-    root.destroy()
+        # Add hover effects
+        button.bind("<Enter>", on_button_hover)
+        button.bind("<Leave>", on_button_leave)
 
-i = 0  # Initialize the global variable
+        # Add click event
+        button.config(command=lambda size=size: on_button_click(size))
 
-# Define the loading function
-def load():
-    global i
-    if i <= 10:
-        txt = f'Loading {10 * i}%'
-        progres_label.config(text=txt)
-        progres_label.after(600, load)
-        progress_bar['value'] = 10 * i
-        i += 1
-    else:
-        def_top()
+    root.mainloop()
 
-load()
-
-# Set the window to be non-resizable
-root.resizable(False, False)
-root.mainloop()
+# Run the menu
+draw_menu()
