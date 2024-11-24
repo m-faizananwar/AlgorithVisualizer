@@ -1,22 +1,15 @@
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
+from generateMaze import MazeSolver
+
 def on_button_click(size):
     """Handles button click events."""
     for widget in root.winfo_children():
         widget.destroy()
-    label = ttk.Label(root, text=f"You selected: {size}", font=("Helvetica", 24, "bold"), bootstyle="info", background='#2F6C60')
-    
-    label.pack(pady=50, anchor='center')
-
-    close_button = ttk.Button(
-        root,
-        text="Close",
-        command=root.destroy,
-        bootstyle="dark-outline",
-        style="Custom.TButton"
-    )
-    close_button.pack(pady=20)
+    root.destroy()
+    solver = MazeSolver(size)
+    solver.select_algorithm()
 
 def draw_menu():
     """Draws the main menu."""
@@ -53,8 +46,14 @@ style = ttk.Style()
 style.configure("Custom.TButton", borderwidth=1, relief="solid", bordercolor="black", focusthickness=3, focuscolor="none")
 style.map("Custom.TButton", background=[("active", "black")], foreground=[("active", "white")])
 
-# Draw the main menu
 draw_menu()
 
-# Run the application
+    # Run the application
 root.mainloop()
+
+if __name__ == "__main__":
+    # Draw the main menu
+    draw_menu()
+
+    # Run the application
+    root.mainloop()

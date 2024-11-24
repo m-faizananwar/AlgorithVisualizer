@@ -2,7 +2,8 @@ import json
 import random
 import turtle
 from queue import PriorityQueue
-
+import time
+import sys
 
 class MazeSolver:
     def __init__(self, size_str):
@@ -123,35 +124,53 @@ class MazeSolver:
                     draw_cell(x, y, "yellow")
 
         # Solve the maze and draw the solution path
-        path = self.solve_maze(algorithm_name)
+        path, metrics = self.solve_maze(algorithm_name)
         if path:
             for (x, y) in path:
                 draw_cell(x, y, "blue")
 
-        # Draw the button
+        print(f"Algorithm: {algorithm_name}")
+        print(f"Cost: {metrics['cost']}")
+        print(f"Nodes Explored: {metrics['nodes_explored']}")
+        print(f"Number of Nodes Expanded: {metrics['nodes_expanded']}")
+        print(f"Time Taken: {metrics['time_taken']} seconds")
+
         button = turtle.Turtle()
         button.penup()
         button.goto(0, 250)
         button.shape("square")
         button.shapesize(stretch_wid=1, stretch_len=5)
         button.fillcolor("lightblue")
-        button.onclick(lambda x, y: select_algorithm())
+
+        # Create a separate turtle for the button text
+        text_turtle = turtle.Turtle()
+        text_turtle.penup()
+        text_turtle.hideturtle()
+        text_turtle.goto(0, 250)
+        text_turtle.write("Select Algorithm", align="center", font=("Arial", 18, "bold"))
+
+        # Make the button clickable
+        button.onclick(lambda x, y: self.select_algorithm())
 
         screen.mainloop()
 
     # Solve the maze with a selected algorithm
     def solve_maze(self, algorithm_name):
+        start_time = time.time()
         if algorithm_name == "UCS":
-            return self.uniform_cost_search()
+            path, metrics = self.uniform_cost_search()
         elif algorithm_name == "IDS":
-            return self.iterative_deepening_search()
+            path, metrics = self.iterative_deepening_search()
         elif algorithm_name == "GBFS":
-            return self.greedy_bfs()
+            path, metrics = self.greedy_bfs()
         elif algorithm_name == "A*":
-            return self.a_star_search()
+            path, metrics = self.a_star_search()
         else:
             print("Invalid algorithm selected.")
-            return None
+            return None, None
+        end_time = time.time()
+        metrics['time_taken'] = end_time - start_time
+        return path, metrics
 
     # Uniform Cost Search
     def uniform_cost_search(self):
@@ -168,23 +187,26 @@ class MazeSolver:
 
         if not goal:
             print("Goal not found in the maze!")
-            return None
+            return None, {}
 
         visited = set()
         pq = PriorityQueue()
         pq.put((0, start, [start]))  # (cost, current_position, path)
+        nodes_explored = 0
+        nodes_expanded = 0
 
         while not pq.empty():
             cost, current, path = pq.get()
+            nodes_explored += 1
 
             if current in visited:
                 continue
 
             visited.add(current)
+            nodes_expanded += 1
 
             if current == goal:
-                print("UCS Path Found:", path)
-                return path
+                return path, {"cost": cost, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
             x, y = current
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -193,7 +215,7 @@ class MazeSolver:
                     pq.put((cost + costs[ny][nx], (nx, ny), path + [(nx, ny)]))
 
         print("No path found using UCS.")
-        return None
+        return None, {"cost": 0, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
     # Iterative Deepening Search
     def iterative_deepening_search(self):
@@ -209,9 +231,14 @@ class MazeSolver:
 
         if not goal:
             print("Goal not found in the maze!")
-            return None
+            return None, {}
+
+        nodes_explored = 0
+        nodes_expanded = 0
 
         def dfs_limited(node, depth, path):
+            nonlocal nodes_explored, nodes_expanded
+            nodes_explored += 1
             if depth == 0 and node == goal:
                 return path
             if depth > 0:
@@ -219,6 +246,7 @@ class MazeSolver:
                 for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                     nx, ny = x + dx, y + dy
                     if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] in ["#", "+"] and (nx, ny) not in path:
+                        nodes_expanded += 1
                         result = dfs_limited((nx, ny), depth - 1, path + [(nx, ny)])
                         if result:
                             return result
@@ -227,11 +255,10 @@ class MazeSolver:
         for depth in range(self.size * self.size):
             result = dfs_limited(start, depth, [start])
             if result:
-                print("IDS Path Found:", result)
-                return result
+                return result, {"cost": depth, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
         print("No path found using IDS.")
-        return None
+        return None, {"cost": 0, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
     # Greedy BFS
     def greedy_bfs(self):
@@ -248,23 +275,26 @@ class MazeSolver:
 
         if not goal:
             print("Goal not found in the maze!")
-            return None
+            return None, {}
 
         visited = set()
         pq = PriorityQueue()
         pq.put((heuristics[start[1]][start[0]], start, [start]))
+        nodes_explored = 0
+        nodes_expanded = 0
 
         while not pq.empty():
             _, current, path = pq.get()
+            nodes_explored += 1
 
             if current in visited:
                 continue
 
             visited.add(current)
+            nodes_expanded += 1
 
             if current == goal:
-                print("GBFS Path Found:", path)
-                return path
+                return path, {"cost": len(path), "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
             x, y = current
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -273,7 +303,7 @@ class MazeSolver:
                     pq.put((heuristics[ny][nx], (nx, ny), path + [(nx, ny)]))
 
         print("No path found using GBFS.")
-        return None
+        return None, {"cost": 0, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
     # A* Search
     def a_star_search(self):
@@ -291,23 +321,26 @@ class MazeSolver:
 
         if not goal:
             print("Goal not found in the maze!")
-            return None
+            return None, {}
 
         visited = set()
         pq = PriorityQueue()
         pq.put((0 + heuristics[start[1]][start[0]], 0, start, [start]))  # (f, g, position, path)
+        nodes_explored = 0
+        nodes_expanded = 0
 
         while not pq.empty():
             f, g, current, path = pq.get()
+            nodes_explored += 1
 
             if current in visited:
                 continue
 
             visited.add(current)
+            nodes_expanded += 1
 
             if current == goal:
-                print("A* Path Found:", path)
-                return path
+                return path, {"cost": g, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
             x, y = current
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -318,16 +351,28 @@ class MazeSolver:
                     pq.put((new_f, new_g, (nx, ny), path + [(nx, ny)]))
 
         print("No path found using A*.")
-        return None
+        return None, {"cost": 0, "nodes_explored": nodes_explored, "nodes_expanded": nodes_expanded}
 
+    def select_algorithm(self):
+        valid_algorithms = ["UCS", "IDS", "GBFS", "A*"]
+        algorithm = turtle.textinput("Select Algorithm", "Enter algorithm (UCS, IDS, GBFS, A*):")
+        if algorithm is None:
+            print("Program closed by user.")
+            sys.exit()
+        elif algorithm:
+            algorithm = algorithm.strip().upper()
+            if algorithm in valid_algorithms:
+                self.render_maze(algorithm)
+            else:
+                print("Invalid algorithm selected. Please enter one of the following: UCS, IDS, GBFS, A*")
+                self.select_algorithm()
+        else:
+            print("No algorithm entered. Please enter one of the following: UCS, IDS, GBFS, A*")
+            self.select_algorithm()
 
-# Example usage
-solver = MazeSolver("15x15")
+def main():
+    solver = MazeSolver("15x15")
+    solver.select_algorithm()
 
-# Create a simple UI for selecting the algorithm
-def select_algorithm():
-    algorithm = turtle.textinput("Select Algorithm", "Enter algorithm (UCS, IDS, GBFS, A*):")
-    if algorithm:
-        solver.render_maze(algorithm)
-
-select_algorithm()
+if __name__ == "__main__":
+    main()

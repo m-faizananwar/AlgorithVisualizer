@@ -10,6 +10,6 @@ if __name__ == "__main__":
     splash = SplashScreen(root, "nel.png")
     splash.start_loading()
     root.mainloop()
-
+    from menu import *
     # Start your main application after the splash screen
     main()
