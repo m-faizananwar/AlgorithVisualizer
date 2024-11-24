@@ -1,8 +1,3 @@
-#####################################
-# Breadth First Search / Flood fill
-# Davis MT
-# 28.01.2018
-#####################################
 
 import turtle                    
 import time
@@ -12,7 +7,7 @@ from collections import deque
 wn = turtle.Screen()               
 wn.bgcolor("black")                
 wn.title("A BFS Maze Solving Program")
-wn.setup(1300,700)                  # setup the dimensions of the working window
+wn.setup(1300,700)                 
 
 
 # this is the class for the Maze

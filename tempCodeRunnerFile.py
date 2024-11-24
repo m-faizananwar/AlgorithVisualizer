@@ -1,58 +1,201 @@
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+import turtle
+import random
+import tkinter as tk
+from tkinter import simpledialog
+import heapq
+import json
+import os
 
-def on_button_click(size):
-    """Handles button click events."""
-    for widget in root.winfo_children():
-        widget.destroy()
-    label = ttk.Label(root, text=f"You selected: {size}", font=("Helvetica", 24, "bold"), bootstyle="info")
-    label.pack(pady=50, fill=X, expand=True)
+class Maze:
+    def __init__(self, size):
+        self.size = size
+        self.maze = self.generate_maze_bfs(size)
+        self.cell_size = 400 // size
+        self.start = (0, 0)
+        self.end = (size - 1, size - 1)
+        self.screen = turtle.Screen()
+        self.t = turtle.Turtle()
+        self.data_file = "maze_data.json"
 
-    back_button = ttk.Button(
-        root,
-        text="Back to Menu",
-        command=draw_menu,
-        bootstyle="dark-outline"
-    )
-    back_button.pack(pady=20)
+    def draw_square(self, x, y, color):
+        self.t.penup()
+        self.t.goto(x * self.cell_size - 200, y * self.cell_size - 200)
+        self.t.pendown()
+        self.t.fillcolor(color)
+        self.t.begin_fill()
+        for _ in range(4):
+            self.t.forward(self.cell_size)
+            self.t.right(90)
+        self.t.end_fill()
 
-def draw_menu():
-    """Draws the main menu."""
-    global root
-    for widget in root.winfo_children():
-        widget.destroy()
+    def draw_maze(self):
+        self.t.speed(0)
+        self.t.hideturtle()
+        self.screen.tracer(0)
+        for y in range(self.size):
+            for x in range(self.size):
+                color = 'white' if self.maze[y][x] == 0 else 'black'
+                self.draw_square(x, y, color)
+        self.draw_square(*self.start, 'yellow')
+        self.draw_square(*self.end, 'green')
+        self.screen.tracer(1)
 
-    # Title
-    title = ttk.Label(root, text="Select Maze Size", font=("Helvetica", 28, "bold"), bootstyle="primary")
-    title.pack(pady=30, fill=X, expand=True)
+    def generate_maze_bfs(self, size):
+        maze = [[1 for _ in range(size)] for _ in range(size)]
+        queue = [(0, 0)]
+        maze[0][0] = 0
+        while queue:
+            x, y = queue.pop(0)
+            neighbors = []
+            if x > 1 and maze[y][x - 2] == 1:
+                neighbors.append((x - 2, y))
+            if x < size - 2 and maze[y][x + 2] == 1:
+                neighbors.append((x + 2, y))
+            if y > 1 and maze[y - 2][x] == 1:
+                neighbors.append((x, y - 2))
+            if y < size - 2 and maze[y + 2][x] == 1:
+                neighbors.append((x, y + 2))
+            random.shuffle(neighbors)
+            for nx, ny in neighbors:
+                if maze[ny][nx] == 1:
+                    maze[ny][nx] = 0
+                    maze[(ny + y) // 2][(nx + x) // 2] = 0
+                    queue.append((nx, ny))
+        return maze
 
-    # Menu Options
-    sizes = ["3x3", "5x5", "10x10", "15x15", "20x20", "25x25", "30x30"]
-    for size in sizes:
-        button = ttk.Button(
-            root,
-            text=size,
-            command=lambda size=size: on_button_click(size),
-            bootstyle="info-outline",
-            width=15,
-            style="Custom.TButton"
-        )
-        button.pack(pady=10)
+    def neighbors(self, x, y):
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < self.size and 0 <= ny < self.size and self.maze[ny][nx] == 0:
+                yield nx, ny
 
-# Initialize the app
-root = ttk.Window(themename="darkly")  # Use a modern theme
-root.title("Maze Size Selector")
-root.geometry("900x600")
-root.resizable(False, False)
-root.configure(bg='cyan')
+    def heuristic(self, pos):
+        x, y = pos
+        ex, ey = self.end
+        return abs(x - ex) + abs(y - ey)
 
-# Create a custom style for buttons
-style = ttk.Style()
-style.configure("Custom.TButton", borderwidth=1, relief="solid", bordercolor="black", focusthickness=3, focuscolor="none")
-style.map("Custom.TButton", background=[("active", "linear-gradient(to bottom, #00f, #0ff)")])
+    def save_maze_data(self):
+        data = {
+            "maze": self.maze,
+            "size": self.size,
+            "start": self.start,
+            "end": self.end,
+            "heuristics": {f"{x},{y}": self.heuristic((x, y)) for y in range(self.size) for x in range(self.size)}
+        }
+        with open(self.data_file, "w") as f:
+            json.dump(data, f)
 
-# Draw the main menu
-draw_menu()
+    def load_maze_data(self):
+        if not os.path.exists(self.data_file):
+            raise FileNotFoundError("Maze data file not found!")
+        with open(self.data_file, "r") as f:
+            data = json.load(f)
+            self.maze = data["maze"]
+            self.size = data["size"]
+            self.start = tuple(data["start"])
+            self.end = tuple(data["end"])
+            return data["heuristics"]
 
-# Run the application
-root.mainloop()
+    def solve_and_draw(self, algorithm):
+        heuristics = self.load_maze_data()
+        if algorithm == "UCS":
+            path = self.uniform_cost_search()
+        elif algorithm == "IDS":
+            path = self.iterative_deepening_search()
+        elif algorithm == "GBFS":
+            path = self.greedy_bfs(heuristics)
+        elif algorithm == "A*":
+            path = self.a_star_search(heuristics)
+        else:
+            return
+        for x, y in path:
+            self.draw_square(x, y, 'blue')
+
+    def uniform_cost_search(self):
+        visited = set()
+        heap = [(0, self.start, [])]
+        while heap:
+            cost, (x, y), path = heapq.heappop(heap)
+            if (x, y) in visited:
+                continue
+            visited.add((x, y))
+            path = path + [(x, y)]
+            if (x, y) == self.end:
+                return path
+            for nx, ny in self.neighbors(x, y):
+                heapq.heappush(heap, (cost + 1, (nx, ny), path))
+
+    def iterative_deepening_search(self):
+        def dfs(x, y, depth, path):
+            if depth < 0 or (x, y) in path:
+                return None
+            path = path + [(x, y)]
+            if (x, y) == self.end:
+                return path
+            for nx, ny in self.neighbors(x, y):
+                result = dfs(nx, ny, depth - 1, path)
+                if result:
+                    return result
+            return None
+
+        for depth in range(self.size * self.size):
+            result = dfs(self.start[0], self.start[1], depth, [])
+            if result:
+                return result
+
+    def greedy_bfs(self, heuristics):
+        visited = set()
+        heap = [(heuristics[f"{x},{y}"], (x, y), []) for x, y in [self.start]]
+        while heap:
+            _, (x, y), path = heapq.heappop(heap)
+            if (x, y) in visited:
+                continue
+            visited.add((x, y))
+            path = path + [(x, y)]
+            if (x, y) == self.end:
+                return path
+            for nx, ny in self.neighbors(x, y):
+                heapq.heappush(heap, (heuristics[f"{nx},{ny}"], (nx, ny), path))
+
+    def a_star_search(self, heuristics):
+        visited = set()
+        heap = [(heuristics[f"{x},{y}"], 0, (x, y), []) for x, y in [self.start]]
+        while heap:
+            f, g, (x, y), path = heapq.heappop(heap)
+            if (x, y) in visited:
+                continue
+            visited.add((x, y))
+            path = path + [(x, y)]
+            if (x, y) == self.end:
+                return path
+            for nx, ny in self.neighbors(x, y):
+                new_g = g + 1
+                heapq.heappush(heap, (new_g + heuristics[f"{nx},{ny}"], new_g, (nx, ny), path))
+
+    def close(self):
+        self.screen.bye()
+
+    def run(self):
+        self.screen.title("Maze Solver")
+        self.screen.setup(width=600, height=600)
+        self.draw_maze()
+        self.save_maze_data()
+
+        root = tk.Tk()
+        root.title("Maze Solver")
+        root.geometry("200x300")
+
+        tk.Button(root, text="Uniform Cost Search", command=lambda: self.solve_and_draw("UCS")).pack(fill=tk.BOTH)
+        tk.Button(root, text="Iterative Deepening Search", command=lambda: self.solve_and_draw("IDS")).pack(fill=tk.BOTH)
+        tk.Button(root, text="Greedy BFS", command=lambda: self.solve_and_draw("GBFS")).pack(fill=tk.BOTH)
+        tk.Button(root, text="A* Search", command=lambda: self.solve_and_draw("A*")).pack(fill=tk.BOTH)
+        tk.Button(root, text="Close", command=lambda: [root.destroy(), self.close()]).pack(fill=tk.BOTH)
+
+        root.mainloop()
+
+
+# Run the Maze Solver
+size = int(simpledialog.askstring("Input", "Enter maze size (e.g., 20):", parent=tk.Tk()))
+maze = Maze(size)
+maze.run()
