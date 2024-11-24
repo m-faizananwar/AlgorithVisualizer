@@ -1,201 +1,333 @@
-import turtle
-import random
-import tkinter as tk
-from tkinter import simpledialog
-import heapq
 import json
-import os
+import random
+import turtle
+from queue import PriorityQueue
 
-class Maze:
-    def __init__(self, size):
-        self.size = size
-        self.maze = self.generate_maze_bfs(size)
-        self.cell_size = 400 // size
-        self.start = (0, 0)
-        self.end = (size - 1, size - 1)
-        self.screen = turtle.Screen()
-        self.t = turtle.Turtle()
-        self.data_file = "maze_data.json"
 
-    def draw_square(self, x, y, color):
-        self.t.penup()
-        self.t.goto(x * self.cell_size - 200, y * self.cell_size - 200)
-        self.t.pendown()
-        self.t.fillcolor(color)
-        self.t.begin_fill()
-        for _ in range(4):
-            self.t.forward(self.cell_size)
-            self.t.right(90)
-        self.t.end_fill()
+class MazeSolver:
+    def __init__(self, size_str):
+        self.size = int(size_str.split("x")[0])
+        self.start_point = [0, 0]  # Top-left corner as start
+        self.maze_data = None
+        self.filename = "maze_data.json"
+        self.generate_and_save_maze_data()
 
-    def draw_maze(self):
-        self.t.speed(0)
-        self.t.hideturtle()
-        self.screen.tracer(0)
+    # Function to generate a maze
+    def generate_maze_recursive(self):
+        maze = [[1 for _ in range(self.size)] for _ in range(self.size)]
+        directions = [(2, 0), (0, 2), (-2, 0), (0, -2)]  # Directions: right, down, left, up
+        last_white_cell = [0, 0]
+
+        def carve_path(x, y):
+            nonlocal last_white_cell
+            maze[y][x] = 0
+            last_white_cell = [x, y]
+            random.shuffle(directions)
+
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] == 1:
+                    maze[(y + ny) // 2][(x + nx) // 2] = 0
+                    carve_path(nx, ny)
+
+        carve_path(0, 0)
+        return maze, last_white_cell
+
+    # Function to create maze structure
+    def create_maze_structure(self, maze, last_white_cell):
+        maze_structure = []
         for y in range(self.size):
+            row = []
             for x in range(self.size):
-                color = 'white' if self.maze[y][x] == 0 else 'black'
-                self.draw_square(x, y, color)
-        self.draw_square(*self.start, 'yellow')
-        self.draw_square(*self.end, 'green')
-        self.screen.tracer(1)
+                if maze[y][x] == 0:
+                    if [x, y] == last_white_cell:
+                        row.append("+")  # Goal
+                    elif [x, y] == self.start_point:
+                        row.append("=")  # Start
+                    else:
+                        row.append("#")  # Path
+                else:
+                    row.append("-")  # Block
+            maze_structure.append(row)
+        return maze_structure
 
-    def generate_maze_bfs(self, size):
-        maze = [[1 for _ in range(size)] for _ in range(size)]
-        queue = [(0, 0)]
-        maze[0][0] = 0
-        while queue:
-            x, y = queue.pop(0)
-            neighbors = []
-            if x > 1 and maze[y][x - 2] == 1:
-                neighbors.append((x - 2, y))
-            if x < size - 2 and maze[y][x + 2] == 1:
-                neighbors.append((x + 2, y))
-            if y > 1 and maze[y - 2][x] == 1:
-                neighbors.append((x, y - 2))
-            if y < size - 2 and maze[y + 2][x] == 1:
-                neighbors.append((x, y + 2))
-            random.shuffle(neighbors)
-            for nx, ny in neighbors:
-                if maze[ny][nx] == 1:
-                    maze[ny][nx] = 0
-                    maze[(ny + y) // 2][(nx + x) // 2] = 0
-                    queue.append((nx, ny))
-        return maze
+    # Generate random costs and heuristics
+    def generate_costs_and_heuristics(self, goal_position):
+        costs = [[random.randint(1, 10) for _ in range(self.size)] for _ in range(self.size)]
+        heuristics = [
+            [abs(goal_position[0] - x) + abs(goal_position[1] - y) for x in range(self.size)]
+            for y in range(self.size)
+        ]
+        return costs, heuristics
 
-    def neighbors(self, x, y):
-        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < self.size and 0 <= ny < self.size and self.maze[ny][nx] == 0:
-                yield nx, ny
-
-    def heuristic(self, pos):
-        x, y = pos
-        ex, ey = self.end
-        return abs(x - ex) + abs(y - ey)
-
-    def save_maze_data(self):
+    # Save maze data to JSON
+    def save_maze_data_to_json(self, maze_structure, costs, heuristics):
         data = {
-            "maze": self.maze,
-            "size": self.size,
-            "start": self.start,
-            "end": self.end,
-            "heuristics": {f"{x},{y}": self.heuristic((x, y)) for y in range(self.size) for x in range(self.size)}
+            "maze": maze_structure,
+            "costs": costs,
+            "heuristics": heuristics,
         }
-        with open(self.data_file, "w") as f:
-            json.dump(data, f)
+        with open(self.filename, "w") as file:
+            json.dump(data, file, indent=4)
 
-    def load_maze_data(self):
-        if not os.path.exists(self.data_file):
-            raise FileNotFoundError("Maze data file not found!")
-        with open(self.data_file, "r") as f:
-            data = json.load(f)
-            self.maze = data["maze"]
-            self.size = data["size"]
-            self.start = tuple(data["start"])
-            self.end = tuple(data["end"])
-            return data["heuristics"]
+    # Generate and save maze data
+    def generate_and_save_maze_data(self):
+        maze, last_white_cell = self.generate_maze_recursive()
+        maze_structure = self.create_maze_structure(maze, last_white_cell)
+        costs, heuristics = self.generate_costs_and_heuristics(last_white_cell)
+        self.save_maze_data_to_json(maze_structure, costs, heuristics)
+        self.maze_data = {"maze": maze_structure, "costs": costs, "heuristics": heuristics}
 
-    def solve_and_draw(self, algorithm):
-        heuristics = self.load_maze_data()
-        if algorithm == "UCS":
-            path = self.uniform_cost_search()
-        elif algorithm == "IDS":
-            path = self.iterative_deepening_search()
-        elif algorithm == "GBFS":
-            path = self.greedy_bfs(heuristics)
-        elif algorithm == "A*":
-            path = self.a_star_search(heuristics)
+    # Render the maze and solve the path
+    def render_maze(self, algorithm_name):
+        maze = self.maze_data["maze"]
+        costs = self.maze_data["costs"]
+        heuristics = self.maze_data["heuristics"]
+        size = self.size
+        cell_size = 400 // size
+
+        turtle.clearscreen()
+        screen = turtle.Screen()
+        screen.title(f"Maze Solver - {algorithm_name}")
+        screen.setup(width=600, height=600)
+        screen.bgcolor("white")
+
+        t = turtle.Turtle()
+        t.speed(0)
+        t.hideturtle()
+
+        def draw_cell(x, y, color):
+            t.penup()
+            t.goto(x * cell_size - 200, y * cell_size - 200)
+            t.pendown()
+            draw_square(t, cell_size, color)
+
+        def draw_square(t, size, color):
+            t.fillcolor(color)
+            t.begin_fill()
+            for _ in range(4):
+                t.forward(size)
+                t.right(90)
+            t.end_fill()
+
+        # Draw maze
+        for y in range(size):
+            for x in range(size):
+                if maze[y][x] == "#":
+                    draw_cell(x, y, "white")
+                elif maze[y][x] == "-":
+                    draw_cell(x, y, "black")
+                elif maze[y][x] == "+":
+                    draw_cell(x, y, "green")
+                elif maze[y][x] == "=":
+                    draw_cell(x, y, "yellow")
+
+        # Solve the maze and draw the solution path
+        path = self.solve_maze(algorithm_name)
+        if path:
+            for (x, y) in path:
+                draw_cell(x, y, "blue")
+
+        # Draw the button
+        button = turtle.Turtle()
+        button.penup()
+        button.goto(0, 250)
+        button.shape("square")
+        button.shapesize(stretch_wid=1, stretch_len=5)
+        button.fillcolor("lightblue")
+        button.onclick(lambda x, y: select_algorithm())
+
+        screen.mainloop()
+
+    # Solve the maze with a selected algorithm
+    def solve_maze(self, algorithm_name):
+        if algorithm_name == "UCS":
+            return self.uniform_cost_search()
+        elif algorithm_name == "IDS":
+            return self.iterative_deepening_search()
+        elif algorithm_name == "GBFS":
+            return self.greedy_bfs()
+        elif algorithm_name == "A*":
+            return self.a_star_search()
         else:
-            return
-        for x, y in path:
-            self.draw_square(x, y, 'blue')
+            print("Invalid algorithm selected.")
+            return None
 
+    # Uniform Cost Search
     def uniform_cost_search(self):
-        visited = set()
-        heap = [(0, self.start, [])]
-        while heap:
-            cost, (x, y), path = heapq.heappop(heap)
-            if (x, y) in visited:
-                continue
-            visited.add((x, y))
-            path = path + [(x, y)]
-            if (x, y) == self.end:
-                return path
-            for nx, ny in self.neighbors(x, y):
-                heapq.heappush(heap, (cost + 1, (nx, ny), path))
+        start = tuple(self.start_point)
+        maze = self.maze_data["maze"]
+        costs = self.maze_data["costs"]
+        goal = None
 
-    def iterative_deepening_search(self):
-        def dfs(x, y, depth, path):
-            if depth < 0 or (x, y) in path:
-                return None
-            path = path + [(x, y)]
-            if (x, y) == self.end:
+        for y, row in enumerate(maze):
+            for x, cell in enumerate(row):
+                if cell == "+":
+                    goal = (x, y)
+                    break
+
+        if not goal:
+            print("Goal not found in the maze!")
+            return None
+
+        visited = set()
+        pq = PriorityQueue()
+        pq.put((0, start, [start]))  # (cost, current_position, path)
+
+        while not pq.empty():
+            cost, current, path = pq.get()
+
+            if current in visited:
+                continue
+
+            visited.add(current)
+
+            if current == goal:
+                print("UCS Path Found:", path)
                 return path
-            for nx, ny in self.neighbors(x, y):
-                result = dfs(nx, ny, depth - 1, path)
-                if result:
-                    return result
+
+            x, y = current
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] in ["#", "+"] and (nx, ny) not in visited:
+                    pq.put((cost + costs[ny][nx], (nx, ny), path + [(nx, ny)]))
+
+        print("No path found using UCS.")
+        return None
+
+    # Iterative Deepening Search
+    def iterative_deepening_search(self):
+        start = tuple(self.start_point)
+        maze = self.maze_data["maze"]
+        goal = None
+
+        for y, row in enumerate(maze):
+            for x, cell in enumerate(row):
+                if cell == "+":
+                    goal = (x, y)
+                    break
+
+        if not goal:
+            print("Goal not found in the maze!")
+            return None
+
+        def dfs_limited(node, depth, path):
+            if depth == 0 and node == goal:
+                return path
+            if depth > 0:
+                x, y = node
+                for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] in ["#", "+"] and (nx, ny) not in path:
+                        result = dfs_limited((nx, ny), depth - 1, path + [(nx, ny)])
+                        if result:
+                            return result
             return None
 
         for depth in range(self.size * self.size):
-            result = dfs(self.start[0], self.start[1], depth, [])
+            result = dfs_limited(start, depth, [start])
             if result:
+                print("IDS Path Found:", result)
                 return result
 
-    def greedy_bfs(self, heuristics):
+        print("No path found using IDS.")
+        return None
+
+    # Greedy BFS
+    def greedy_bfs(self):
+        start = tuple(self.start_point)
+        maze = self.maze_data["maze"]
+        heuristics = self.maze_data["heuristics"]
+        goal = None
+
+        for y, row in enumerate(maze):
+            for x, cell in enumerate(row):
+                if cell == "+":
+                    goal = (x, y)
+                    break
+
+        if not goal:
+            print("Goal not found in the maze!")
+            return None
+
         visited = set()
-        heap = [(heuristics[f"{x},{y}"], (x, y), []) for x, y in [self.start]]
-        while heap:
-            _, (x, y), path = heapq.heappop(heap)
-            if (x, y) in visited:
-                continue
-            visited.add((x, y))
-            path = path + [(x, y)]
-            if (x, y) == self.end:
-                return path
-            for nx, ny in self.neighbors(x, y):
-                heapq.heappush(heap, (heuristics[f"{nx},{ny}"], (nx, ny), path))
+        pq = PriorityQueue()
+        pq.put((heuristics[start[1]][start[0]], start, [start]))
 
-    def a_star_search(self, heuristics):
+        while not pq.empty():
+            _, current, path = pq.get()
+
+            if current in visited:
+                continue
+
+            visited.add(current)
+
+            if current == goal:
+                print("GBFS Path Found:", path)
+                return path
+
+            x, y = current
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] in ["#", "+"] and (nx, ny) not in visited:
+                    pq.put((heuristics[ny][nx], (nx, ny), path + [(nx, ny)]))
+
+        print("No path found using GBFS.")
+        return None
+
+    # A* Search
+    def a_star_search(self):
+        start = tuple(self.start_point)
+        maze = self.maze_data["maze"]
+        costs = self.maze_data["costs"]
+        heuristics = self.maze_data["heuristics"]
+        goal = None
+
+        for y, row in enumerate(maze):
+            for x, cell in enumerate(row):
+                if cell == "+":
+                    goal = (x, y)
+                    break
+
+        if not goal:
+            print("Goal not found in the maze!")
+            return None
+
         visited = set()
-        heap = [(heuristics[f"{x},{y}"], 0, (x, y), []) for x, y in [self.start]]
-        while heap:
-            f, g, (x, y), path = heapq.heappop(heap)
-            if (x, y) in visited:
+        pq = PriorityQueue()
+        pq.put((0 + heuristics[start[1]][start[0]], 0, start, [start]))  # (f, g, position, path)
+
+        while not pq.empty():
+            f, g, current, path = pq.get()
+
+            if current in visited:
                 continue
-            visited.add((x, y))
-            path = path + [(x, y)]
-            if (x, y) == self.end:
+
+            visited.add(current)
+
+            if current == goal:
+                print("A* Path Found:", path)
                 return path
-            for nx, ny in self.neighbors(x, y):
-                new_g = g + 1
-                heapq.heappush(heap, (new_g + heuristics[f"{nx},{ny}"], new_g, (nx, ny), path))
 
-    def close(self):
-        self.screen.bye()
+            x, y = current
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.size and 0 <= ny < self.size and maze[ny][nx] in ["#", "+"] and (nx, ny) not in visited:
+                    new_g = g + costs[ny][nx]
+                    new_f = new_g + heuristics[ny][nx]
+                    pq.put((new_f, new_g, (nx, ny), path + [(nx, ny)]))
 
-    def run(self):
-        self.screen.title("Maze Solver")
-        self.screen.setup(width=600, height=600)
-        self.draw_maze()
-        self.save_maze_data()
-
-        root = tk.Tk()
-        root.title("Maze Solver")
-        root.geometry("200x300")
-
-        tk.Button(root, text="Uniform Cost Search", command=lambda: self.solve_and_draw("UCS")).pack(fill=tk.BOTH)
-        tk.Button(root, text="Iterative Deepening Search", command=lambda: self.solve_and_draw("IDS")).pack(fill=tk.BOTH)
-        tk.Button(root, text="Greedy BFS", command=lambda: self.solve_and_draw("GBFS")).pack(fill=tk.BOTH)
-        tk.Button(root, text="A* Search", command=lambda: self.solve_and_draw("A*")).pack(fill=tk.BOTH)
-        tk.Button(root, text="Close", command=lambda: [root.destroy(), self.close()]).pack(fill=tk.BOTH)
-
-        root.mainloop()
+        print("No path found using A*.")
+        return None
 
 
-# Run the Maze Solver
-size = int(simpledialog.askstring("Input", "Enter maze size (e.g., 20):", parent=tk.Tk()))
-maze = Maze(size)
-maze.run()
+# Example usage
+solver = MazeSolver("15x15")
+
+# Create a simple UI for selecting the algorithm
+def select_algorithm():
+    algorithm = turtle.textinput("Select Algorithm", "Enter algorithm (UCS, IDS, GBFS, A*):")
+    if algorithm:
+        solver.render_maze(algorithm)
+
+select_algorithm()

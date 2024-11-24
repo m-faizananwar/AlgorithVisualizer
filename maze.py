@@ -10,7 +10,6 @@ wn.title("A BFS Maze Solving Program")
 wn.setup(1300,700)                 
 
 
-# this is the class for the Maze
 class Maze(turtle.Turtle):               # define a Maze class
     def __init__(self):
         turtle.Turtle.__init__(self)
